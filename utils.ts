@@ -1,5 +1,4 @@
 import {
-  ConcurrentMerkleTreeAccount,
   getConcurrentMerkleTreeAccountSize,
   SPL_ACCOUNT_COMPRESSION_PROGRAM_ID,
   SPL_NOOP_PROGRAM_ID,
@@ -10,7 +9,6 @@ import {
   SystemProgram,
   Transaction,
   sendAndConfirmTransaction,
-  Signer,
 } from "@solana/web3.js";
 import { WrappedConnection } from "./wrappedConnection";
 import {
@@ -26,13 +24,11 @@ import {
   createCreateMetadataAccountV3Instruction,
   createCreateMasterEditionV3Instruction,
   createSetCollectionSizeInstruction,
-  Key,
 } from "@metaplex-foundation/mpl-token-metadata";
 import { Token, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { BN } from "@project-serum/anchor";
 import {
   bufferToArray,
-  execute,
   getBubblegumAuthorityPDA,
   getVoucherPDA,
 } from "./helpers";
@@ -47,7 +43,7 @@ export const initTree = async (
   maxBufferSize: number = 64
 ) => {
   const payer = payerKeypair.publicKey;
-  const space = getConcurrentMerkleTreeAccountSize(maxDepth, maxBufferSize, 5);
+  const space = getConcurrentMerkleTreeAccountSize(maxDepth, maxBufferSize);
   const [treeAuthority, _bump] = await PublicKey.findProgramAddress(
     [treeKeypair.publicKey.toBuffer()],
     BUBBLEGUM_PROGRAM_ID
@@ -78,7 +74,6 @@ export const initTree = async (
   let tx = new Transaction().add(allocTreeIx).add(createTreeIx);
   tx.feePayer = payer;
   try {
-    console.log("sending txn");
     await sendAndConfirmTransaction(
       connectionWrapper,
       tx,
@@ -243,29 +238,6 @@ export const getCollectionDetailsFromMintAccount = async (
   };
 };
 
-// Avoid re-creating the collection each time. You can re-create it by commenting out the conditions.
-// Retrieves or initializes a collection for the given mint account.
-export const getOrInitCollection = async (
-  connectionWrapper: WrappedConnection,
-  collectionMintAccount: PublicKey,
-  owner: Keypair
-) => {
-  const collectionMintInfo = await connectionWrapper.getAccountInfo(
-    collectionMintAccount
-  );
-  if (collectionMintInfo?.data) {
-    console.log("Collection details already exist.");
-    return await getCollectionDetailsFromMintAccount(
-      connectionWrapper,
-      collectionMintAccount,
-      owner
-    );
-  } else {
-    console.log("Collection does not exist. Initializing.");
-    return await initCollection(connectionWrapper, owner);
-  }
-};
-
 export const mintCompressedNft = async (
   connectionWrapper: WrappedConnection,
   nftArgs: MetadataArgs,
@@ -326,23 +298,16 @@ export const mintCompressedNft = async (
   }
 };
 
-export const getCompressedNftIdFromTree = async (
-  connectionWrapper: WrappedConnection,
-  treeKeypair: Keypair
+export const getCompressedNftId = async (
+  treeKeypair: Keypair,
+  leafIndex: number
 ) => {
-  let mkAccount = await ConcurrentMerkleTreeAccount.fromAccountAddress(
-    connectionWrapper,
-    treeKeypair.publicKey
-  );
-  let canopyHeight = mkAccount.getCanopyDepth();
-  console.log("Canopy height of tree: " + canopyHeight);
-  const leafIndex = new BN.BN(2);
-  // grabbing the asset id so that it can be passed to transfer
+  const node = new BN.BN(leafIndex);
   const [assetId] = await PublicKey.findProgramAddress(
     [
       Buffer.from("asset", "utf8"),
       treeKeypair.publicKey.toBuffer(),
-      Uint8Array.from(leafIndex.toArray("le", 8)),
+      Uint8Array.from(node.toArray("le", 8)),
     ],
     BUBBLEGUM_PROGRAM_ID
   );
@@ -390,7 +355,6 @@ export const transferAsset = async (
   const leafDelegate = rpcAsset.ownership.delegate
     ? new PublicKey(rpcAsset.ownership.delegate)
     : new PublicKey(rpcAsset.ownership.owner);
-  const canopyHeight = rpcAsset.compression.seq;
   let transferIx = createTransferInstruction(
     {
       treeAuthority,
@@ -400,10 +364,7 @@ export const transferAsset = async (
       merkleTree: new PublicKey(assetProof.tree_id),
       logWrapper: SPL_NOOP_PROGRAM_ID,
       compressionProgram: SPL_ACCOUNT_COMPRESSION_PROGRAM_ID,
-      anchorRemainingAccounts: proofPath.slice(
-        0,
-        proofPath.length - (!!canopyHeight ? canopyHeight : 0)
-      ),
+      anchorRemainingAccounts: proofPath,
     },
     {
       root: bufferToArray(bs58.decode(assetProof.root)),

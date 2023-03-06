@@ -2,9 +2,11 @@ import {
   TokenProgramVersion,
   TokenStandard,
 } from "@metaplex-foundation/mpl-bubblegum";
+import { ConcurrentMerkleTreeAccount } from "@solana/spl-account-compression";
 import { Keypair } from "@solana/web3.js";
+import base58 from "bs58";
 import {
-  getCompressedNftIdFromTree,
+  getCompressedNftId,
   initCollection,
   initTree,
   mintCompressedNft,
@@ -18,7 +20,22 @@ const e2e = async () => {
     throw new Error("Api key must be provided via API_KEY env var");
   }
 
-  const ownerWallet = Keypair.generate();
+  const secretKey = process.env["SECRET_KEY"];
+  if (!secretKey) {
+    throw new Error(
+      "Wallet secret key must be provided via SECRET_KEY env var"
+    );
+  }
+  let decodedSecretKey;
+  try {
+    decodedSecretKey = base58.decode(secretKey);
+  } catch {
+    throw new Error(
+      "Invalid secret key provided. Must be a base 58 encoded string."
+    );
+  }
+
+  const ownerWallet = Keypair.fromSecretKey(decodedSecretKey);
   console.log("Owner wallet: " + ownerWallet.publicKey);
 
   const connectionString = `https://rpc-devnet.helius.xyz?api-key=${apiKey}`;
@@ -72,11 +89,15 @@ const e2e = async () => {
   );
   console.log("Minted compressed nft with txn: " + sig);
 
-  // Get the NFT mint ID from the merkle tree (picks last one leaf in tree)
-  const assetId = await getCompressedNftIdFromTree(
+  // Get the NFT mint ID from the merkle tree.
+  const treeAccount = await ConcurrentMerkleTreeAccount.fromAccountAddress(
     connectionWrapper,
-    treeWallet
+    treeWallet.publicKey
   );
+  // Get the most rightmost leaf index, which will be the most recently minted compressed NFT.
+  // Alternatively you can keep a counter that is incremented on each mint.
+  const leafIndex = treeAccount.tree.rightMostPath.index - 1;
+  const assetId = await getCompressedNftId(treeWallet, leafIndex);
   console.log("Minted asset: " + assetId);
 
   // Fixed wallet to receive the NFT when we test transfer.
@@ -86,12 +107,16 @@ const e2e = async () => {
   console.log("New owner wallet: " + newOwnerWallet.publicKey.toBase58());
 
   console.log("\n===Transfer===");
-  console.log("Transfer to new wallet and back.");
+  console.log("Transfer to new wallet.");
   await transferAsset(
     connectionWrapper,
     ownerWallet,
     newOwnerWallet,
     assetId.toBase58()
+  );
+  console.log(
+    "Successfully transferred nft to wallet: " +
+      newOwnerWallet.publicKey.toBase58()
   );
 };
 
