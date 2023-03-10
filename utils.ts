@@ -505,7 +505,7 @@ export const burnAsset = async (
     );
     return sig;
   } catch (e) {
-    console.error("Failed to redeem compressed asset", e);
+    console.error("Failed to burn compressed asset", e);
     throw e;
   }
 };
@@ -521,7 +521,7 @@ export const cancelRedeemAsset = async (
   const treeAuthority = await getBubblegumAuthorityPDA(
     new PublicKey(assetProof.tree_id)
   );
-  const redeemIx = createCancelRedeemInstruction(
+  const cancelRedeemIx = createCancelRedeemInstruction(
     {
       treeAuthority,
       leafOwner: new PublicKey(rpcAsset.ownership.owner),
@@ -534,7 +534,7 @@ export const cancelRedeemAsset = async (
       root: bufferToArray(bs58.decode(assetProof.root)),
     }
   );
-  const tx = new Transaction().add(redeemIx);
+  const tx = new Transaction().add(cancelRedeemIx);
   tx.feePayer = owner.publicKey;
   try {
     const sig = await sendAndConfirmTransaction(
@@ -548,7 +548,7 @@ export const cancelRedeemAsset = async (
     );
     return sig;
   } catch (e) {
-    console.error("Failed to redeem compressed asset", e);
+    console.error("Failed to cancel redeem compressed asset", e);
     throw e;
   }
 };
@@ -568,7 +568,7 @@ export const delegateAsset = async (
     ? new PublicKey(rpcAsset.ownership.delegate)
     : new PublicKey(rpcAsset.ownership.owner);
   const newLeafDelegate = previousLeafDelegate;
-  const redeemIx = createDelegateInstruction(
+  const delegateIx = createDelegateInstruction(
     {
       treeAuthority,
       leafOwner: new PublicKey(rpcAsset.ownership.owner),
@@ -590,7 +590,7 @@ export const delegateAsset = async (
       index: leafNonce,
     }
   );
-  const tx = new Transaction().add(redeemIx);
+  const tx = new Transaction().add(delegateIx);
   tx.feePayer = owner.publicKey;
   try {
     const sig = await sendAndConfirmTransaction(
@@ -604,7 +604,7 @@ export const delegateAsset = async (
     );
     return sig;
   } catch (e) {
-    console.error("Failed to redeem compressed asset", e);
+    console.error("Failed to delegate compressed asset", e);
     throw e;
   }
 };
