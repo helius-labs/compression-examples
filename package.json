@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "description": "compression example",
   "scripts": {
-    "e2e": "ts-node e2e.ts"
+    "e2e": "ts-node e2e.ts",
+    "burn": "ts-node burn.ts"
   },
   "dependencies": {
     "@metaplex-foundation/amman": "0.12.0",

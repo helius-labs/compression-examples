@@ -14,3 +14,11 @@ Note: This example does not use a canopy for simplicity. A canopy is an on-chain
 ```
 npm run e2e
 ```
+
+### BURN
+
+Similar to e2e, but after minting instead of a transfer a burn instruction will be executed.
+
+```
+npm run burn
+```
