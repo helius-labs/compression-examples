@@ -4,7 +4,8 @@
   "description": "compression example",
   "scripts": {
     "e2e": "ts-node e2e.ts",
-    "burn": "ts-node burn.ts"
+    "burn": "ts-node burn.ts",
+    "decompress": "ts-node decompress.ts"
   },
   "dependencies": {
     "@metaplex-foundation/amman": "0.12.0",

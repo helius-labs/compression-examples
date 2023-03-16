@@ -3,10 +3,14 @@ import {
   TokenStandard,
 } from "@metaplex-foundation/mpl-bubblegum";
 import { ConcurrentMerkleTreeAccount } from "@solana/spl-account-compression";
-import { Keypair } from "@solana/web3.js";
+import {
+  Connection,
+  Keypair,
+  ParsedAccountData,
+  PublicKey,
+} from "@solana/web3.js";
 import base58 from "bs58";
 import {
-  burnAsset,
   getCompressedNftId,
   initCollection,
   initTree,
@@ -15,7 +19,7 @@ import {
 } from "./utils";
 import { WrappedConnection } from "./wrappedConnection";
 
-const burn = async () => {
+const decompress = async () => {
   const apiKey = process.env["API_KEY"];
   if (!apiKey) {
     throw new Error("Api key must be provided via API_KEY env var");
@@ -101,12 +105,18 @@ const burn = async () => {
   const assetId = await getCompressedNftId(treeWallet, leafIndex);
   console.log("Minted asset: " + assetId);
 
-  const burnSig = await burnAsset(
-    connectionWrapper,
-    ownerWallet,
-    assetId.toBase58()
+  const connection = new Connection(
+    `https://rpc-devnet.helius.xyz?api-key=${apiKey}`
   );
-  console.log("Burn tx: " + burnSig);
+  await getMintAuthority(connection, collectionMint.publicKey.toBase58());
 };
 
-burn();
+async function getMintAuthority(connection: Connection, mintAddress: string) {
+  const mintPublicKey = new PublicKey(mintAddress);
+  const mintData = await connection.getParsedAccountInfo(mintPublicKey);
+  const data = mintData.value!.data as ParsedAccountData;
+
+  console.log(data.parsed.info.mintAuthority);
+}
+
+decompress();
