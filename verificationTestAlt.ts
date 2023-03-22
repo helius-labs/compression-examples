@@ -82,9 +82,9 @@ const createALT = async (connection: WrappedConnection, payer: Keypair, pubKeys:
   return lookupTablePubkey;
 };
 
-const NUM_COLLECTIONS = 3;
-const NUM_NFTS_PER_COLLECTION = 100;
-const NUM_IXN_PER_TXN = 5;
+const NUM_COLLECTIONS = 2;
+const NUM_NFTS_PER_COLLECTION = 2;
+const NUM_IXN_PER_TXN = 1;
 const verificationTest = async () => {
   const { ownerWallet, connectionWrapper, treeWallet } = getConfiguration();
 
@@ -96,6 +96,7 @@ const verificationTest = async () => {
   let ixnBatch = [];
   let lookupTableKey = undefined;
   let collectionMints = [];
+  let leafOwners = new Map();
   for (let i = 0; i < NUM_COLLECTIONS; i++) {
     const { collectionMint, collectionMetadataAccount, collectionMasterEditionAccount } = await initCollection(
       i,
@@ -168,8 +169,13 @@ const verificationTest = async () => {
         sellerFeeBasisPoints: 0,
         isMutable: false,
       };
-
-      const ixn: TransactionInstruction = await createMintCompressedNftIxn(nftArgs, createMintAccounts);
+      console.log(nftArgs.name);
+      const leafOwner = Keypair.generate();
+      leafOwners.set(`${i}:${j}`, leafOwner.publicKey.toBase58());
+      const ixn: TransactionInstruction = await createMintCompressedNftIxn(nftArgs, {
+        ...createMintAccounts,
+        leafOwner: leafOwner.publicKey,
+      });
       ixnBatch.push(ixn);
       if (ixnBatch.length == NUM_IXN_PER_TXN) {
         const sig = await mintCompressedNft(connectionWrapper, ixnBatch, ownerWallet, lookupTableKey);
@@ -196,6 +202,8 @@ const verificationTest = async () => {
     const asset = await connectionWrapper.getAsset(assetId);
     const jsonUri = asset.content.json_uri;
     const name = asset.content.metadata.name;
+
+    const leafOwner = asset.ownership.owner;
     const symbol = asset.content.metadata.symbol;
     let collection = '';
     asset.grouping.forEach((group: any) => {
@@ -204,7 +212,7 @@ const verificationTest = async () => {
       }
     });
     const id = symbol.split(' ')[1];
-    indexed.set(id, { jsonUri, name, symbol, collection });
+    indexed.set(id, { jsonUri, name, symbol, collection, leafOwner });
   }
 
   // verification
@@ -221,6 +229,7 @@ const verificationTest = async () => {
         symbol: `COMP ${i}:${j}`,
         jsonUri: `uri ${i}:${j}`,
         collection: collectionMint.publicKey.toBase58(),
+        leafOwner: leafOwners.get(`${i}:${j}`),
       };
       const id = `${i}:${j}`;
       if (!indexed.has(id)) {

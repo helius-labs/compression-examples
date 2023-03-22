@@ -83,4 +83,21 @@ export class WrappedConnection extends Connection {
       console.error(error);
     }
   }
+
+  async getAssetsByOwnerRaw(assetId: string): Promise<any> {
+    try {
+      const response = await axios.post(this.rpcUrl, {
+        jsonrpc: '2.0',
+        method: 'get_assets_by_owner',
+        id: 'compression-example',
+        params: {
+          ownerAddress: assetId,
+          page: 1,
+        },
+      });
+      return response.data.result;
+    } catch (error) {
+      console.error(error);
+    }
+  }
 }
