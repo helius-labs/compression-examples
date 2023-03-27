@@ -21,7 +21,7 @@ import {
   Transaction,
 } from '@solana/web3.js';
 import base58 from 'bs58';
-
+import fs from 'fs';
 import {
   PROGRAM_ID as TOKEN_METADATA_PROGRAM_ID,
   createCreateMasterEditionV3Instruction,
@@ -59,7 +59,8 @@ const getConfiguration = (): Configuration => {
   const ownerWallet = Keypair.fromSecretKey(decodedSecretKey);
   console.log('Owner wallet: ' + ownerWallet.publicKey);
 
-  const connectionString = `https://rpc-devnet.helius.xyz?api-key=${apiKey}`;
+  // const connectionString = `https://rpc-devnet.helius.xyz?api-key=${apiKey}`;
+  const connectionString = `https://rpc.helius.xyz?api-key=${apiKey}`;
   const connectionWrapper = new WrappedConnection(ownerWallet, connectionString);
 
   // Fixed wallet to manage the merkle tree used to store the collection.
@@ -184,7 +185,6 @@ const initCollection = async (
   try {
     await sendAndConfirmTransaction(connectionWrapper, tx, [payer], {
       commitment: 'confirmed',
-      skipPreflight: true,
       maxRetries: 5,
     });
     console.log(
@@ -257,17 +257,81 @@ export const initTree = async (
   }
 };
 
+const sendMintTxn = async (
+  nftId: string,
+  nonce: number,
+  count: number,
+  collection: CollectionConfig,
+  leafOwner: PublicKey,
+  createMintAccounts: MintToCollectionV1InstructionAccounts,
+  connectionWrapper: WrappedConnection,
+  payerWallet: Keypair,
+): Promise<MintEvent> => {
+  const numId = parseInt(nftId);
+  // 15k yoots
+  const yootsUrl = `https://metadata.y00ts.com/y/${numId % 15000}.json`;
+  const owner = leafOwner.toBase58();
+  const nftArgs = {
+    name: `Compressed ${nftId}`,
+    symbol: `COMP ${nftId}`,
+    uri: yootsUrl,
+    creators: [],
+    editionNonce: nonce,
+    tokenProgramVersion: TokenProgramVersion.Original,
+    tokenStandard: TokenStandard.NonFungible,
+    uses: null,
+    collection: { key: collection.collectionMint, verified: false },
+    primarySaleHappened: false,
+    sellerFeeBasisPoints: count,
+    isMutable: false,
+  };
+  const ixn: TransactionInstruction = createMintCompressedNftIxn(nftArgs, {
+    ...createMintAccounts,
+    leafOwner,
+  });
+  let tx = new Transaction().add(ixn);
+  let sig = '';
+  try {
+    sig = await sendAndConfirmTransaction(connectionWrapper, tx, [payerWallet], {
+      commitment: 'confirmed',
+      preflightCommitment: 'confirmed',
+      skipPreflight: false,
+      maxRetries: 5,
+    });
+  } catch (e) {
+    console.error('Failed to mint NFT: ', e);
+  }
+  // console.log(`Successfully minted NFT ${nftId} with signature: ${sig}, owner:${owner}`);
+  const nft: Nft = {
+    nftId,
+    owner,
+    name: nftArgs.name,
+    symbol: nftArgs.symbol,
+    jsonUri: nftArgs.uri,
+    collection: collection.collectionMint.toBase58(),
+    editionNonce: nftArgs.editionNonce,
+    sellerFeeBasisPoints: nftArgs.sellerFeeBasisPoints,
+  };
+  return { signature: sig, nft };
+};
+
 const mintCompressedNfts = async (
   connectionWrapper: WrappedConnection,
   payerWallet: Keypair,
   treePubkey: PublicKey,
-  collectionMints: CollectionConfig[],
+  startId: number,
+  collectionId: number,
+  collectionMints?: CollectionConfig[],
 ): Promise<Map<string, MintEvent[]>> => {
-  let count = 0;
+  if (!collectionMints) {
+    collectionMints = [await initCollection(collectionId, connectionWrapper, payerWallet)];
+  }
+  let count = startId;
   let mintEventMap = new Map<string, MintEvent[]>();
 
   let leafOwner = Keypair.generate().publicKey;
-  let owner = leafOwner.toBase58();
+  let ownerMinted = 0;
+  let promises: any = [];
   for (let collection of collectionMints) {
     // retrieve tree auth
     const [treeAuthority, _bump] = await PublicKey.findProgramAddressSync(
@@ -302,56 +366,22 @@ const mintCompressedNfts = async (
     for (let j = 0; j < NUM_NFTS_PER_COLLECTION; j++) {
       const nftId = (++count).toString();
       const nonce = count % 256;
-      const nftArgs = {
-        name: `Compressed ${nftId}`,
-        symbol: `COMP ${nftId}`,
-        uri: `uri ${nftId}`,
-        creators: [],
-        editionNonce: nonce,
-        tokenProgramVersion: TokenProgramVersion.Original,
-        tokenStandard: TokenStandard.NonFungible,
-        uses: null,
-        collection: { key: collection.collectionMint, verified: false },
-        primarySaleHappened: false,
-        sellerFeeBasisPoints: count,
-        isMutable: false,
-      };
-      const ixn: TransactionInstruction = await createMintCompressedNftIxn(nftArgs, {
-        ...createMintAccounts,
-        leafOwner,
-      });
-      let tx = new Transaction().add(ixn);
-      let sig = '';
-      try {
-        sig = await sendAndConfirmTransaction(connectionWrapper, tx, [payerWallet], {
-          commitment: 'confirmed',
-          skipPreflight: true,
-          maxRetries: 5,
-        });
-      } catch (e) {
-        console.error('Failed to mint NFT: ', e);
-        continue;
-      }
-      console.log(`Successfully minted NFT ${nftId} with signature: ${sig}, owner:${owner}`);
-      const nftObject: Nft = {
-        nftId,
-        owner,
-        name: nftArgs.name,
-        symbol: nftArgs.symbol,
-        jsonUri: nftArgs.uri,
-        collection: collection.collectionMint.toBase58(),
-        editionNonce: nftArgs.editionNonce,
-        sellerFeeBasisPoints: nftArgs.sellerFeeBasisPoints,
-      };
-      const nftEvents = mintEventMap.get(owner) || [];
-      nftEvents.push({ signature: sig, nft: nftObject });
-      mintEventMap.set(owner, nftEvents);
-      // reset owner if limit reached
-      if (nftEvents.length == NUM_NFTS_PER_OWNER) {
+      promises.push(
+        sendMintTxn(nftId, nonce, count, collection, leafOwner, createMintAccounts, connectionWrapper, payerWallet),
+      );
+      ownerMinted++;
+      if (ownerMinted == NUM_NFTS_PER_OWNER) {
         leafOwner = Keypair.generate().publicKey;
-        owner = leafOwner.toBase58();
+        ownerMinted = 0;
       }
     }
+    const responses: MintEvent[] = await Promise.all(promises);
+    responses.map((response) => {
+      const owner = response.nft.owner;
+      const nftEvents = mintEventMap.get(owner) || [];
+      nftEvents.push(response);
+      mintEventMap.set(owner, nftEvents);
+    });
   }
   return mintEventMap;
 };
@@ -406,83 +436,126 @@ type Nft = {
   editionNonce: number;
   sellerFeeBasisPoints: number;
 };
+const verifyAsset = async (
+  connectionWrapper: WrappedConnection,
+  owner: string,
+  mintEvents: MintEvent[],
+): Promise<number> => {
+  let errors = 0;
+  const assetsByOwner = await connectionWrapper.getAssetsByOwnerRaw(owner);
+  if (!assetsByOwner) {
+    console.log(`No assets found for owner ${owner}`);
+    return 1;
+  }
+  // build map of assets from das. <nftId, asset>
+  const assetMapFromDas = buildNftTypeMap(assetsByOwner.items);
+
+  for (const event of mintEvents) {
+    const nft = event.nft;
+    console.log(`Verifying NFT ${nft.nftId} owner: ${nft.owner}`);
+
+    const assetResponse = assetMapFromDas.get(nft.nftId);
+    // console.log('assetResponseName', assetResponse?.nft.name);
+    if (!shallowEqual(nft, assetResponse?.nft)) {
+      console.log('Expected:\n' + JSON.stringify(nft, null, 2));
+
+      console.log('Mint Signature', event.signature);
+      console.log('Recieved:\n' + JSON.stringify(assetResponse?.nft, null, 2));
+
+      if (!assetResponse) {
+        console.log('Recieved Null from RPC');
+      }
+      console.log('DAS leafId', assetResponse?.leafId);
+      console.log('DAS assetId', assetResponse?.assetId);
+      console.log(JSON.stringify(assetsByOwner));
+      errors++;
+    }
+    assetMapFromDas.delete(nft.nftId);
+  }
+  return errors;
+};
 
 // pass in owner to NFT Mint Event map
 const verifyCompressedNftsByOwner = async (
   connectionWrapper: WrappedConnection,
   ownerMintEventMap: Map<string, MintEvent[]>,
 ) => {
-  let errors = 0;
-  let dupe = new Set<string>();
-  let dupeError = 0;
+  let promises = [];
   for (const [owner, mintEvents] of ownerMintEventMap.entries()) {
-    const assetsByOwner = await connectionWrapper.getAssetsByOwnerRaw(owner);
-    if (!assetsByOwner) {
-      console.log(`No assets found for owner ${owner}`);
-      continue;
-    }
-    // build map of assets from das. <nftId, asset>
-    const assetMapFromDas = buildNftTypeMap(assetsByOwner.items);
-
-    for (const event of mintEvents) {
-      const nft = event.nft;
-      console.log(`Verifying NFT ${nft.nftId} owner: ${nft.owner}`);
-
-      if (dupe.has(nft.nftId)) {
-        console.log(`NFT ${nft.nftId} has already been processed`);
-        dupeError++;
-      } else {
-        dupe.add(nft.nftId);
-      }
-
-      const assetResponse = assetMapFromDas.get(nft.nftId);
-      console.log('assetResponseName', assetResponse?.nft.name);
-      if (!shallowEqual(nft, assetResponse?.nft)) {
-        console.log('Expected:\n' + JSON.stringify(nft, null, 2));
-
-        console.log('Mint Signature', event.signature);
-        console.log('Recieved:\n' + JSON.stringify(assetResponse?.nft, null, 2));
-
-        if (!assetResponse) {
-          console.log('Recieved Null from RPC');
-        }
-        console.log('DAS leafId', assetResponse?.leafId);
-        console.log('DAS assetId', assetResponse?.assetId);
-        console.log(JSON.stringify(assetsByOwner));
-        errors++;
-      }
-      assetMapFromDas.delete(nft.nftId);
-    }
+    promises.push(verifyAsset(connectionWrapper, owner, mintEvents));
   }
+  const responses = await Promise.all(promises);
+  const errors = responses.reduce((a, b) => a + b);
   console.log(`Found ${errors} errors`);
-  console.log(`Found ${dupeError} dupe errors`);
 };
+
+function readMapFromJsonFile(filepath: string): Map<string, MintEvent[]> {
+  // read the JSON file as a string
+  const jsonString = fs.readFileSync(filepath, 'utf8');
+
+  // parse the JSON string into an object
+  const obj = JSON.parse(jsonString);
+
+  // create a new Map object from the object's entries
+  const myMap = new Map<string, MintEvent[]>(Object.entries(obj));
+
+  return myMap;
+}
 
 // the following is a script that will mint 5 collections of 100 NFTs each
 // no ALT, 1 ixn per txn, 100 sendTxn concurrently
 // single merkle tree
 
+// metadata URL uses yoots since there are 15000
 const NUM_COLLECTIONS = 3;
-const NUM_NFTS_PER_COLLECTION = 100;
-const NUM_NFTS_PER_OWNER = 3;
-const main = async () => {
+const NUM_NFTS_PER_COLLECTION = 1000;
+const NUM_NFTS_PER_OWNER = 5;
+const CACHE_FILE = 'mint.json';
+const mint = async () => {
   // get configs
   const { connectionWrapper, payerWallet, treeWallet } = getConfiguration();
-  // initialize collections (not compressed NFTs)
-  const collections: CollectionConfig[] = [];
-  for (let i = 0; i < NUM_COLLECTIONS; i++) {
-    collections.push(await initCollection(i, connectionWrapper, payerWallet));
-  }
 
   // initalize merkle tree
   await initTree(connectionWrapper, payerWallet, treeWallet);
 
   // mint NFTs
-  const ownerMintEventMap = await mintCompressedNfts(connectionWrapper, payerWallet, treeWallet.publicKey, collections);
+  const promises = Array(NUM_COLLECTIONS)
+    .fill(0)
+    .map(async (_, index) => {
+      console.log(`Minting ${NUM_NFTS_PER_COLLECTION} NFTs for collection ${index}`);
+      const promise = mintCompressedNfts(
+        connectionWrapper,
+        payerWallet,
+        treeWallet.publicKey,
+        index * NUM_NFTS_PER_COLLECTION,
+        index,
+      );
+      return promise;
+    });
+  const responses = await Promise.all(promises);
+  const flatMap: any = [];
+  responses.map((response) => {
+    flatMap.push(...Array.from(response.entries()));
+  });
+  const ownerMintEventMap: Map<string, MintEvent[]> = new Map(flatMap);
 
-  // wait for indexer
-  await new Promise((f) => setTimeout(f, 15000));
-  // verify and log differences
+  const obj = Object.fromEntries(ownerMintEventMap);
+  fs.writeFileSync(CACHE_FILE, JSON.stringify(obj));
+};
+
+const verify = async () => {
+  const { connectionWrapper, payerWallet, treeWallet } = getConfiguration();
+  const ownerMintEventMap = readMapFromJsonFile(CACHE_FILE);
   await verifyCompressedNftsByOwner(connectionWrapper, ownerMintEventMap);
 };
+
+const main = async () => {
+  await mint();
+  console.log('Finished minting');
+  await new Promise((f) => setTimeout(f, 15000));
+  await verify();
+};
+// mint();
+// verify();
+
 main();

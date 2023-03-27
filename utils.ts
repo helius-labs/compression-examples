@@ -221,10 +221,10 @@ export const getCollectionDetailsFromMintAccount = async (
   };
 };
 
-export const createMintCompressedNftIxn = async (
+export const createMintCompressedNftIxn = (
   nftArgs: MetadataArgs,
   createMintAccounts: MintToCollectionV1InstructionAccounts,
-): Promise<TransactionInstruction> => {
+): TransactionInstruction => {
   const mintIx = createMintToCollectionV1Instruction(createMintAccounts, {
     metadataArgs: nftArgs,
   });
@@ -246,10 +246,10 @@ export const mintCompressedNft = async (
   }
 };
 
-export const getCompressedNftId = async (treeKeypair: Keypair, leafIndex: number) => {
+export const getCompressedNftId = async (treePublicKey: PublicKey, leafIndex: number) => {
   const node = new BN.BN(leafIndex);
   const [assetId] = await PublicKey.findProgramAddress(
-    [Buffer.from('asset', 'utf8'), treeKeypair.publicKey.toBuffer(), Uint8Array.from(node.toArray('le', 8))],
+    [Buffer.from('asset', 'utf8'), treePublicKey.toBuffer(), Uint8Array.from(node.toArray('le', 8))],
     BUBBLEGUM_PROGRAM_ID,
   );
   return assetId;
@@ -423,3 +423,27 @@ export async function sendTransactionV0(
   );
   console.log(`** -- Signature: ${sx}`);
 }
+
+const printEntireTree = async (connection: WrappedConnection, treeId: string) => {
+  console.log('Printing entire tree');
+  let i = 5000;
+  const assetId = await getCompressedNftId(new PublicKey(treeId), i);
+  const asset = await connection.getAsset(assetId);
+  if (!asset) {
+    console.log('Asset not found');
+  } else {
+    console.log('Asset  found');
+  }
+};
+
+const printIndexOfTree = async (connection: WrappedConnection, treeId: string, index: number) => {
+  console.log(`Printing index ${index} of tree ${treeId}`);
+  const assetId = await getCompressedNftId(new PublicKey(treeId), index);
+  console.log(`Got assetId ${assetId}`);
+  const asset = await connection.getAsset(assetId);
+  if (!asset) {
+    console.log('Asset not found');
+  } else {
+    console.log(JSON.stringify(asset, null, 2));
+  }
+};
