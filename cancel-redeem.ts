@@ -1,9 +1,9 @@
 import { Keypair } from "@solana/web3.js";
 import base58 from "bs58";
-import { burnAsset } from "./utils";
+import { cancelRedeemAsset } from "./utils";
 import { WrappedConnection } from "./wrappedConnection";
 
-const burn = async () => {
+const cancelRedeem = async () => {
   const apiKey = process.env["API_KEY"];
   if (!apiKey) {
     throw new Error("Api key must be provided via API_KEY env var");
@@ -33,8 +33,12 @@ const burn = async () => {
     connectionString
   );
   const assetId = require("minimist")(process.argv.slice(2)).assetId;
-  const burnSig = await burnAsset(connectionWrapper, ownerWallet, assetId);
-  console.log("Burn tx: " + burnSig);
+  const burnSig = await cancelRedeemAsset(
+    connectionWrapper,
+    ownerWallet,
+    assetId
+  );
+  console.log("Cancel redeem tx: " + burnSig);
 };
 
-burn();
+cancelRedeem();
