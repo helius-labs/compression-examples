@@ -15,7 +15,7 @@ import {
 } from "./utils";
 import { WrappedConnection } from "./wrappedConnection";
 
-const burn = async () => {
+const e2e = async () => {
   const apiKey = process.env["API_KEY"];
   if (!apiKey) {
     throw new Error("Api key must be provided via API_KEY env var");
@@ -109,4 +109,4 @@ const burn = async () => {
   console.log("Burn tx: " + burnSig);
 };
 
-burn();
+e2e();
