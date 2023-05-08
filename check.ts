@@ -58,15 +58,11 @@ const check = async () => {
                 leaf: new PublicKey(proof.leaf).toBuffer(),
                 tree_id: new PublicKey(proof.tree_id).toBuffer(),
             };
-            console.log(proof);
-            const verified = verify(p.root, p, false);
-            // console.log('Proof verified: ' + verified);
+            const verified = MerkleTree.verify(p.root, p, false);
             if (verified == true) {
-                console.log('Valid proof: ' + assetInfo);
-                // break;
+                // console.log('Valid proof: ' + assetInfo);
             } else {
                 console.log('Invalid proof: ' + assetInfo);
-                break;
             }
         }
     }
@@ -108,59 +104,5 @@ function verify(root: Buffer, merkleTreeProof: MerkleTreeProof, verbose: boolean
     if (verbose) console.log(`Hashed ${rehashed} got ${received}`);
     return rehashed === received;
 }
-
-const proofForID0 = {
-    jsonrpc: '2.0',
-    result: {
-        root: '42KqMm6LCyrDRF1p58tMWZ3EdazVEmpqjxdP7HtXmE16',
-        proof: [
-            'GYmrEFLTs9eRTqH6Ss9YpmM9AdFDwif8GaV3HLi8JVzQ',
-            '8ADzrEVpBZ7psd5mBT2rBqR7pRN5hyxVCKGE7UzDDVYa',
-            'V6h4HxvQueeoZjBVWGg7W1Z5Q2UNPV37QxicrPP2aV1',
-            'AKRXh3do9FK8hT2b91Rh6vdJt2SSRmWqbVeHxkD9CtyM',
-            'GqBUJb17ej97m33JN5PZRCuqTL3ynztJSSMZqw5eX94b',
-            'EFKEARGR8bSVW73SUArfLj48h6tihVzcLJd68gNPYZZp',
-            '2SRaCuFSKQCmPmqzvRXC8JVyBeB7phhoNuZxGeYEjSMi',
-            '8deuLwMmqX9VdjNePAtB5fhKka8DVMbzds4Ep4gFUbFo',
-            'DoRSSkT8dyVtEEA2wHr6c6ES1YyqEV6n4Tor28LA9Mbb',
-            'FRSajGCrhAFK7KnnzyJ34sM9jx9p3NmnfccHuSkESY7b',
-            '6PTW6C12oJZDT7pkeZwQSUcvQFY3D1UDx5q6i81ov2Sk',
-            '6NviHvNRULnh9gezDAvbGU9yxP3Sh7vSuqw2TX5ZR1V6',
-            '4fbeWrKkLSXoFrZqpe3m6P7fM9jgy4DTPqerLvMp1Z4M',
-            '14RPh6ySBgj6Bh643Y4Z1otmsfrbLJnysEbe1NSfD9fv',
-        ],
-        node_index: 16384,
-        leaf: '7RH16uvjg5h5hCaeCKZYgFyqLRSvButktyXbjNhpmTez',
-        tree_id: '4A8wVYH2e3SPEsHUPTVcdrNGMmnZoPja9M7K9qxVqXyn',
-    },
-    id: '0',
-};
-
-const proofForID1 = {
-    jsonrpc: '2.0',
-    result: {
-        root: '42KqMm6LCyrDRF1p58tMWZ3EdazVEmpqjxdP7HtXmE16',
-        proof: [
-            '7RH16uvjg5h5hCaeCKZYgFyqLRSvButktyXbjNhpmTez',
-            '8ADzrEVpBZ7psd5mBT2rBqR7pRN5hyxVCKGE7UzDDVYa',
-            'V6h4HxvQueeoZjBVWGg7W1Z5Q2UNPV37QxicrPP2aV1',
-            'AKRXh3do9FK8hT2b91Rh6vdJt2SSRmWqbVeHxkD9CtyM',
-            'GqBUJb17ej97m33JN5PZRCuqTL3ynztJSSMZqw5eX94b',
-            'EFKEARGR8bSVW73SUArfLj48h6tihVzcLJd68gNPYZZp',
-            '2SRaCuFSKQCmPmqzvRXC8JVyBeB7phhoNuZxGeYEjSMi',
-            '8deuLwMmqX9VdjNePAtB5fhKka8DVMbzds4Ep4gFUbFo',
-            'DoRSSkT8dyVtEEA2wHr6c6ES1YyqEV6n4Tor28LA9Mbb',
-            'FRSajGCrhAFK7KnnzyJ34sM9jx9p3NmnfccHuSkESY7b',
-            '6PTW6C12oJZDT7pkeZwQSUcvQFY3D1UDx5q6i81ov2Sk',
-            '6NviHvNRULnh9gezDAvbGU9yxP3Sh7vSuqw2TX5ZR1V6',
-            '4fbeWrKkLSXoFrZqpe3m6P7fM9jgy4DTPqerLvMp1Z4M',
-            '14RPh6ySBgj6Bh643Y4Z1otmsfrbLJnysEbe1NSfD9fv',
-        ],
-        node_index: 16385,
-        leaf: 'GYmrEFLTs9eRTqH6Ss9YpmM9AdFDwif8GaV3HLi8JVzQ',
-        tree_id: '4A8wVYH2e3SPEsHUPTVcdrNGMmnZoPja9M7K9qxVqXyn',
-    },
-    id: '0',
-};
 
 check();
