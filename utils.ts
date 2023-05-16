@@ -7,6 +7,7 @@ import { Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransacti
 import { WrappedConnection } from './wrappedConnection';
 import {
     createCreateTreeInstruction,
+    createMintV1Instruction,
     createMintToCollectionV1Instruction,
     createRedeemInstruction,
     createTransferInstruction,
@@ -201,22 +202,57 @@ export const mintCompressedNft = async (
     connectionWrapper: WrappedConnection,
     nftArgs: MetadataArgs,
     ownerKeypair: Keypair,
-    treeKeypair: Keypair,
+    tree: PublicKey,
+) => {
+    const [treeAuthority, _bump] = await PublicKey.findProgramAddress([tree.toBuffer()], BUBBLEGUM_PROGRAM_ID);
+    const [bgumSigner, __] = await PublicKey.findProgramAddress(
+        [Buffer.from('collection_cpi', 'utf8')],
+        BUBBLEGUM_PROGRAM_ID,
+    );
+    const mintIx = createMintV1Instruction(
+        {
+            merkleTree: tree,
+            treeAuthority,
+            treeDelegate: ownerKeypair.publicKey,
+            payer: ownerKeypair.publicKey,
+            leafDelegate: ownerKeypair.publicKey,
+            leafOwner: ownerKeypair.publicKey,
+            compressionProgram: SPL_ACCOUNT_COMPRESSION_PROGRAM_ID,
+            logWrapper: SPL_NOOP_PROGRAM_ID,
+        },
+        { message: nftArgs },
+    );
+    const tx = new Transaction().add(mintIx);
+    tx.feePayer = ownerKeypair.publicKey;
+    try {
+        const sig = await sendAndConfirmTransaction(connectionWrapper, tx, [ownerKeypair], {
+            commitment: 'confirmed',
+            skipPreflight: true,
+        });
+        return sig;
+    } catch (e) {
+        console.error('Failed to mint compressed NFT', e);
+        throw e;
+    }
+};
+
+export const mintCompressedNftWithCollection = async (
+    connectionWrapper: WrappedConnection,
+    nftArgs: MetadataArgs,
+    ownerKeypair: Keypair,
+    tree: PublicKey,
     collectionMint: Token,
     collectionMetadata: PublicKey,
     collectionMasterEditionAccount: PublicKey,
 ) => {
-    const [treeAuthority, _bump] = await PublicKey.findProgramAddress(
-        [treeKeypair.publicKey.toBuffer()],
-        BUBBLEGUM_PROGRAM_ID,
-    );
+    const [treeAuthority, _bump] = await PublicKey.findProgramAddress([tree.toBuffer()], BUBBLEGUM_PROGRAM_ID);
     const [bgumSigner, __] = await PublicKey.findProgramAddress(
         [Buffer.from('collection_cpi', 'utf8')],
         BUBBLEGUM_PROGRAM_ID,
     );
     const mintIx = createMintToCollectionV1Instruction(
         {
-            merkleTree: treeKeypair.publicKey,
+            merkleTree: tree,
             treeAuthority,
             treeDelegate: ownerKeypair.publicKey,
             payer: ownerKeypair.publicKey,
@@ -264,11 +300,11 @@ export const getCompressedNftId = async (tree: PublicKey, leafIndex: number) => 
 export const transferAsset = async (
     connectionWrapper: WrappedConnection,
     owner: Keypair,
-    newOwner: Keypair,
+    newOwner: PublicKey,
     assetId: string,
 ) => {
     console.log(
-        `Transfering asset ${assetId} from ${owner.publicKey.toBase58()} to ${newOwner.publicKey.toBase58()}. 
+        `Transfering asset ${assetId} from ${owner.publicKey.toBase58()} to ${newOwner.toBase58()}. 
     This will depend on indexer api calls to fetch the necessary data.`,
     );
     let assetProof = await connectionWrapper.getAssetProof(assetId);
@@ -302,7 +338,7 @@ export const transferAsset = async (
             treeAuthority,
             leafOwner: new PublicKey(rpcAsset.ownership.owner),
             leafDelegate: leafDelegate,
-            newLeafOwner: newOwner.publicKey,
+            newLeafOwner: newOwner,
             merkleTree: new PublicKey(assetProof.tree_id),
             logWrapper: SPL_NOOP_PROGRAM_ID,
             compressionProgram: SPL_ACCOUNT_COMPRESSION_PROGRAM_ID,

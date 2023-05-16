@@ -25,7 +25,7 @@ const check = async () => {
     console.log('Owner wallet: ' + ownerWallet.publicKey);
 
     const connectionString = `https://rpc.helius.xyz?api-key=${apiKey}`;
-    const connectionWrapper = new WrappedConnection(ownerWallet, connectionString, connectionString, true);
+    const connectionWrapper = new WrappedConnection(ownerWallet, connectionString, connectionString, false);
 
     // Check tree
     const tree = new PublicKey('2kuTFCcjbV22wvUmtmgsFR7cas7eZUzAu96jzJUvUcb7');
@@ -36,7 +36,7 @@ const check = async () => {
     console.log('Max depth: ' + treeAccount.getMaxDepth());
 
     // Look for empty proofs
-    for (let index = 0; index < treeAccount.tree.rightMostPath.index; index++) {
+    for (let index = 1024; index < treeAccount.tree.rightMostPath.index; index++) {
         const assetId = await getCompressedNftId(tree, index);
         const assetInfo = `index: ${index}, id: ${assetId}`;
         if (index % 10 == 0) {
