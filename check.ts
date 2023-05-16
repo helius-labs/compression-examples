@@ -25,10 +25,10 @@ const check = async () => {
     console.log('Owner wallet: ' + ownerWallet.publicKey);
 
     const connectionString = `https://rpc.helius.xyz?api-key=${apiKey}`;
-    const connectionWrapper = new WrappedConnection(ownerWallet, connectionString);
+    const connectionWrapper = new WrappedConnection(ownerWallet, connectionString, connectionString, true);
 
     // Check tree
-    const tree = new PublicKey('4A8wVYH2e3SPEsHUPTVcdrNGMmnZoPja9M7K9qxVqXyn');
+    const tree = new PublicKey('2kuTFCcjbV22wvUmtmgsFR7cas7eZUzAu96jzJUvUcb7');
     const treeAccount = await ConcurrentMerkleTreeAccount.fromAccountAddress(connectionWrapper, tree);
     console.log('Root: ' + base58.encode(treeAccount.getCurrentRoot()));
     console.log('Seq: ' + treeAccount.getCurrentSeq());
@@ -58,33 +58,16 @@ const check = async () => {
                 leaf: new PublicKey(proof.leaf).toBuffer(),
                 tree_id: new PublicKey(proof.tree_id).toBuffer(),
             };
-            const verified = MerkleTree.verify(p.root, p, false);
+            const verified = verify(p.root, p, false);
             if (verified == true) {
-                // console.log('Valid proof: ' + assetInfo);
+                console.log('Valid proof: ' + assetInfo);
             } else {
                 console.log('Invalid proof: ' + assetInfo);
+                break;
             }
         }
     }
 };
-
-function hashProof(merkleTreeProof: MerkleTreeProof, verbose: boolean = false): Buffer {
-    const { leaf, leafIndex, proof } = merkleTreeProof;
-
-    let node = new PublicKey(leaf).toBuffer();
-    for (let i = 0; i < proof.length; i++) {
-        console.log(leafIndex);
-        if ((leafIndex >> i) % 2 === 0) {
-            console.log('hashing as left-hand node: ' + i);
-            node = hash(node, new PublicKey(proof[i]).toBuffer());
-        } else {
-            console.log('hashing as right-hand node: ' + i);
-            node = hash(new PublicKey(proof[i]).toBuffer(), node);
-        }
-        if (verbose) console.log(`node ${i} ${new PublicKey(node).toString()}`);
-    }
-    return node;
-}
 
 /**
  * Verifies that a root matches the proof.
@@ -103,6 +86,27 @@ function verify(root: Buffer, merkleTreeProof: MerkleTreeProof, verbose: boolean
     }
     if (verbose) console.log(`Hashed ${rehashed} got ${received}`);
     return rehashed === received;
+}
+
+function hashProof(merkleTreeProof: MerkleTreeProof, verbose: boolean = false): Buffer {
+    const { leaf, leafIndex, proof } = merkleTreeProof;
+
+    let node = new PublicKey(leaf).toBuffer();
+    for (let i = 0; i < proof.length; i++) {
+        if ((leafIndex >> i) % 2 === 0) {
+            // console.log(
+            //     `Hashing together next proof value ${base58.encode(node)} (index: ${i}) with ${base58.encode(
+            //         proof[i],
+            //     )}`,
+            // );
+            node = hash(node, new PublicKey(proof[i]).toBuffer());
+        } else {
+            // console.log('hashing as right-hand node: ' + i);
+            node = hash(new PublicKey(proof[i]).toBuffer(), node);
+        }
+        if (verbose) console.log(`node ${i} ${new PublicKey(node).toString()}`);
+    }
+    return node;
 }
 
 check();

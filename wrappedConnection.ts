@@ -1,20 +1,22 @@
 import { AnchorProvider } from '@project-serum/anchor';
 import NodeWallet from '@project-serum/anchor/dist/cjs/nodewallet';
 import { Connection, Keypair } from '@solana/web3.js';
+import os from 'os';
 import axios from 'axios';
 
 export class WrappedConnection extends Connection {
     provider: AnchorProvider;
     payer: Keypair;
     rpcUrl: string;
-    rpc: any;
-    constructor(payer: Keypair, connectionString: string, rpcUrl?: string) {
+    localUrl: string;
+    useLocalDas: boolean;
+    constructor(payer: Keypair, connectionString: string, rpcUrl?: string, useLocalDas: boolean = false) {
         super(connectionString, 'confirmed');
         this.rpcUrl = rpcUrl ?? connectionString;
-        this.rpc = axios.create({
-            baseURL: 'localhost:9090',
-            proxy: false,
-        });
+        this.useLocalDas = useLocalDas;
+        // axios gets grumpy with localhost for some reason. Using my IP worked instead.
+        // Didn't want to publicly share my IP via github, so here we go instead.
+        this.localUrl = `http://${getMachineIPAddress()}:9090`;
         this.provider = new AnchorProvider(new Connection(connectionString), new NodeWallet(payer), {
             commitment: super.commitment,
             skipPreflight: true,
@@ -24,7 +26,7 @@ export class WrappedConnection extends Connection {
 
     async getAsset(assetId: any): Promise<any> {
         try {
-            const response = await this.rpc.post('localhost:9090', {
+            const response = await axios.post(this.useLocalDas ? this.localUrl : this.rpcUrl, {
                 jsonrpc: '2.0',
                 method: 'get_asset',
                 id: 'compression-example',
@@ -39,7 +41,7 @@ export class WrappedConnection extends Connection {
     async getAssetProof(assetId: any): Promise<any> {
         try {
             const response = await axios.post(
-                'http://10.0.0.67:9090',
+                this.useLocalDas ? this.localUrl : this.rpcUrl,
                 {
                     jsonrpc: '2.0',
                     method: 'get_asset_proof',
@@ -63,7 +65,7 @@ export class WrappedConnection extends Connection {
         after: string,
     ): Promise<any> {
         try {
-            const response = await axios.post('localhost:9090', {
+            const response = await axios.post(this.useLocalDas ? this.localUrl : this.rpcUrl, {
                 jsonrpc: '2.0',
                 method: 'get_assets_by_owner',
                 id: 'compression-example',
@@ -74,4 +76,19 @@ export class WrappedConnection extends Connection {
             console.error(error);
         }
     }
+}
+
+function getMachineIPAddress() {
+    const networkInterfaces = os.networkInterfaces();
+    let ipAddress = '';
+
+    Object.values(networkInterfaces).forEach((interfaces) => {
+        interfaces?.forEach((interfaceInfo) => {
+            if (interfaceInfo.family === 'IPv4' && !interfaceInfo.internal) {
+                ipAddress = interfaceInfo.address;
+            }
+        });
+    });
+
+    return ipAddress;
 }
