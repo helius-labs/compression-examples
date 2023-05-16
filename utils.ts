@@ -12,12 +12,15 @@ import {
 } from "@solana/web3.js";
 import { WrappedConnection } from "./wrappedConnection";
 import {
+  createBurnInstruction,
   createCreateTreeInstruction,
   createMintToCollectionV1Instruction,
   createRedeemInstruction,
   createTransferInstruction,
+  createCancelRedeemInstruction,
   MetadataArgs,
   PROGRAM_ID as BUBBLEGUM_PROGRAM_ID,
+  createDelegateInstruction,
 } from "@metaplex-foundation/mpl-bubblegum";
 import {
   PROGRAM_ID as TOKEN_METADATA_PROGRAM_ID,
@@ -449,6 +452,159 @@ export const redeemAsset = async (
     return sig;
   } catch (e) {
     console.error("Failed to redeem compressed asset", e);
+    throw e;
+  }
+};
+
+export const burnAsset = async (
+  connectionWrapper: WrappedConnection,
+  owner: Keypair,
+  assetId?: string
+) => {
+  let assetProof = await connectionWrapper.getAssetProof(assetId);
+  const rpcAsset = await connectionWrapper.getAsset(assetId);
+  const leafNonce = rpcAsset.compression.leaf_id;
+  const treeAuthority = await getBubblegumAuthorityPDA(
+    new PublicKey(assetProof.tree_id)
+  );
+  const leafDelegate = rpcAsset.ownership.delegate
+    ? new PublicKey(rpcAsset.ownership.delegate)
+    : new PublicKey(rpcAsset.ownership.owner);
+  const burnIx = createBurnInstruction(
+    {
+      treeAuthority,
+      leafOwner: new PublicKey(rpcAsset.ownership.owner),
+      leafDelegate,
+      merkleTree: new PublicKey(assetProof.tree_id),
+      logWrapper: SPL_NOOP_PROGRAM_ID,
+      compressionProgram: SPL_ACCOUNT_COMPRESSION_PROGRAM_ID,
+    },
+    {
+      root: bufferToArray(bs58.decode(assetProof.root)),
+      dataHash: bufferToArray(
+        bs58.decode(rpcAsset.compression.data_hash.trim())
+      ),
+      creatorHash: bufferToArray(
+        bs58.decode(rpcAsset.compression.creator_hash.trim())
+      ),
+      nonce: leafNonce,
+      index: leafNonce,
+    }
+  );
+  const tx = new Transaction().add(burnIx);
+  tx.feePayer = owner.publicKey;
+  try {
+    const sig = await sendAndConfirmTransaction(
+      connectionWrapper,
+      tx,
+      [owner],
+      {
+        commitment: "confirmed",
+        skipPreflight: true,
+      }
+    );
+    return sig;
+  } catch (e) {
+    console.error("Failed to burn compressed asset", e);
+    throw e;
+  }
+};
+
+export const cancelRedeemAsset = async (
+  connectionWrapper: WrappedConnection,
+  owner: Keypair,
+  assetId?: string
+) => {
+  let assetProof = await connectionWrapper.getAssetProof(assetId);
+  const rpcAsset = await connectionWrapper.getAsset(assetId);
+  const voucher = await getVoucherPDA(new PublicKey(assetProof.tree_id), 0);
+  const treeAuthority = await getBubblegumAuthorityPDA(
+    new PublicKey(assetProof.tree_id)
+  );
+  const cancelRedeemIx = createCancelRedeemInstruction(
+    {
+      treeAuthority,
+      leafOwner: new PublicKey(rpcAsset.ownership.owner),
+      merkleTree: new PublicKey(assetProof.tree_id),
+      voucher,
+      logWrapper: SPL_NOOP_PROGRAM_ID,
+      compressionProgram: SPL_ACCOUNT_COMPRESSION_PROGRAM_ID,
+    },
+    {
+      root: bufferToArray(bs58.decode(assetProof.root)),
+    }
+  );
+  const tx = new Transaction().add(cancelRedeemIx);
+  tx.feePayer = owner.publicKey;
+  try {
+    const sig = await sendAndConfirmTransaction(
+      connectionWrapper,
+      tx,
+      [owner],
+      {
+        commitment: "confirmed",
+        skipPreflight: true,
+      }
+    );
+    return sig;
+  } catch (e) {
+    console.error("Failed to cancel redeem compressed asset", e);
+    throw e;
+  }
+};
+
+export const delegateAsset = async (
+  connectionWrapper: WrappedConnection,
+  owner: Keypair,
+  assetId?: string
+) => {
+  let assetProof = await connectionWrapper.getAssetProof(assetId);
+  const rpcAsset = await connectionWrapper.getAsset(assetId);
+  const leafNonce = rpcAsset.compression.leaf_id;
+  const treeAuthority = await getBubblegumAuthorityPDA(
+    new PublicKey(assetProof.tree_id)
+  );
+  const previousLeafDelegate = rpcAsset.ownership.delegate
+    ? new PublicKey(rpcAsset.ownership.delegate)
+    : new PublicKey(rpcAsset.ownership.owner);
+  const newLeafDelegate = previousLeafDelegate;
+  const delegateIx = createDelegateInstruction(
+    {
+      treeAuthority,
+      leafOwner: new PublicKey(rpcAsset.ownership.owner),
+      previousLeafDelegate,
+      newLeafDelegate,
+      merkleTree: new PublicKey(assetProof.tree_id),
+      logWrapper: SPL_NOOP_PROGRAM_ID,
+      compressionProgram: SPL_ACCOUNT_COMPRESSION_PROGRAM_ID,
+    },
+    {
+      root: bufferToArray(bs58.decode(assetProof.root)),
+      dataHash: bufferToArray(
+        bs58.decode(rpcAsset.compression.data_hash.trim())
+      ),
+      creatorHash: bufferToArray(
+        bs58.decode(rpcAsset.compression.creator_hash.trim())
+      ),
+      nonce: leafNonce,
+      index: leafNonce,
+    }
+  );
+  const tx = new Transaction().add(delegateIx);
+  tx.feePayer = owner.publicKey;
+  try {
+    const sig = await sendAndConfirmTransaction(
+      connectionWrapper,
+      tx,
+      [owner],
+      {
+        commitment: "confirmed",
+        skipPreflight: true,
+      }
+    );
+    return sig;
+  } catch (e) {
+    console.error("Failed to delegate compressed asset", e);
     throw e;
   }
 };
