@@ -1,5 +1,5 @@
 import { ConcurrentMerkleTreeAccount, MerkleTree, MerkleTreeProof, hash } from '@solana/spl-account-compression';
-import { Keypair, PublicKey, SlotUpdate } from '@solana/web3.js';
+import { ConfirmedSignatureInfo, Keypair, PublicKey, SlotUpdate } from '@solana/web3.js';
 import base58 from 'bs58';
 import { WrappedConnection } from './wrappedConnection';
 import { getCompressedNftId } from './utils';
@@ -28,7 +28,9 @@ const check = async () => {
     const connectionWrapper = new WrappedConnection(ownerWallet, connectionString, connectionString, false);
 
     // Check tree
-    const tree = new PublicKey('2kuTFCcjbV22wvUmtmgsFR7cas7eZUzAu96jzJUvUcb7');
+
+    // const tree = new PublicKey('Cu61XHSkbasbvBc3atv5NUMz6C8FYmocNkH7mtjLFjR7');
+    const tree = new PublicKey('36jge8tHxMamiYHqa47d9v1WokRxjMvMa4Wh7x3fAjs8');
     const treeAccount = await ConcurrentMerkleTreeAccount.fromAccountAddress(connectionWrapper, tree);
     console.log('Root: ' + base58.encode(treeAccount.getCurrentRoot()));
     console.log('Seq: ' + treeAccount.getCurrentSeq());
@@ -36,35 +38,42 @@ const check = async () => {
     console.log('Max depth: ' + treeAccount.getMaxDepth());
 
     // Look for empty proofs
-    for (let index = 1024; index < treeAccount.tree.rightMostPath.index; index++) {
+    let promises = [];
+    for (let index = 0; index < treeAccount.tree.rightMostPath.index; index++) {
         const assetId = await getCompressedNftId(tree, index);
         const assetInfo = `index: ${index}, id: ${assetId}`;
         if (index % 10 == 0) {
             console.log('checking: ' + assetInfo);
         }
-        const proof = await connectionWrapper.getAssetProof(assetId);
-        if (proof.root === '') {
-            console.log('Empty root ' + assetInfo);
-        } else if (proof.proof.every((x: string) => x === '')) {
-            console.log('Empty proof ' + assetInfo);
-        } else if (proof.proof.find((x: string) => x === '') != undefined) {
-            console.log('Partially empty proof ' + assetInfo);
-        } else {
-            const p = {
-                root: new PublicKey(proof.root).toBuffer(),
-                proof: proof.proof.map((x: string) => new PublicKey(x).toBuffer()),
-                leafIndex: index,
-                node_index: proof.node_index,
-                leaf: new PublicKey(proof.leaf).toBuffer(),
-                tree_id: new PublicKey(proof.tree_id).toBuffer(),
-            };
-            const verified = verify(p.root, p, false);
-            if (verified == true) {
-                console.log('Valid proof: ' + assetInfo);
+        const promise = connectionWrapper.getAssetProof(assetId).then((proof) => {
+            if (proof.root === '') {
+                console.log('Empty root ' + assetInfo);
+            } else if (proof.proof.every((x: string) => x === '')) {
+                console.log('Empty proof ' + assetInfo);
+            } else if (proof.proof.find((x: string) => x === '') != undefined) {
+                console.log('Partially empty proof ' + assetInfo);
             } else {
-                console.log('Invalid proof: ' + assetInfo);
-                break;
+                const p = {
+                    root: new PublicKey(proof.root).toBuffer(),
+                    proof: proof.proof.map((x: string) => new PublicKey(x).toBuffer()),
+                    leafIndex: index,
+                    node_index: proof.node_index,
+                    leaf: new PublicKey(proof.leaf).toBuffer(),
+                    tree_id: new PublicKey(proof.tree_id).toBuffer(),
+                };
+                const verified = verify(p.root, p, false);
+                if (verified == true) {
+                    console.log('Valid proof: ' + assetInfo);
+                } else {
+                    console.log('Invalid proof: ' + assetInfo);
+                    throw new Error('Invalid proof');
+                }
             }
+        });
+        promises.push(promise);
+        if (promises.length > 50) {
+            await Promise.all(promises);
+            promises = [];
         }
     }
 };

@@ -28,7 +28,7 @@ export class WrappedConnection extends Connection {
         try {
             const response = await axios.post(this.useLocalDas ? this.localUrl : this.rpcUrl, {
                 jsonrpc: '2.0',
-                method: 'get_asset',
+                method: 'getAsset',
                 id: 'compression-example',
                 params: [assetId],
             });
@@ -44,7 +44,7 @@ export class WrappedConnection extends Connection {
                 this.useLocalDas ? this.localUrl : this.rpcUrl,
                 {
                     jsonrpc: '2.0',
-                    method: 'get_asset_proof',
+                    method: 'getAssetProof',
                     id: 'compression-example',
                     params: [assetId],
                 },
@@ -67,7 +67,7 @@ export class WrappedConnection extends Connection {
         try {
             const response = await axios.post(this.useLocalDas ? this.localUrl : this.rpcUrl, {
                 jsonrpc: '2.0',
-                method: 'get_assets_by_owner',
+                method: 'getAssetsByOwner',
                 id: 'compression-example',
                 params: [assetId, sortBy, limit, page, before, after],
             });

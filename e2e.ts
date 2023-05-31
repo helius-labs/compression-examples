@@ -25,11 +25,12 @@ const e2e = async () => {
     const ownerWallet = Keypair.fromSecretKey(decodedSecretKey);
     console.log('Owner wallet: ' + ownerWallet.publicKey);
 
-    const connectionString = `https://rpc.helius.xyz?api-key=${apiKey}`;
+    const connectionString = `https://rpc-devnet.helius.xyz?api-key=${apiKey}`;
     const connectionWrapper = new WrappedConnection(ownerWallet, connectionString);
 
     // Fixed wallet to manage the merkle tree used to store the collection.
-    let tree = new PublicKey('1F8W2tM7NPCmZiUzhmW74yEQ7YQkjJCXXC5636iooz3'); // mainnet
+    // let tree = new PublicKey('1F8W2tM7NPCmZiUzhmW74yEQ7YQkjJCXXC5636iooz3'); // mainnet
+    let tree = new PublicKey('BcDFy3R4bWzobPoQJCXNdBWJENeYeRLEBU3cXV2YVmMy'); // devnet
 
     // UNCOMMENT TO GENERATE A NEW TREE:
     // tree = Keypair.generate();
