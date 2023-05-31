@@ -10,27 +10,20 @@ const check = async () => {
         throw new Error('Api key must be provided via API_KEY env var');
     }
 
-    const secretKey = process.env['SECRET_KEY'];
-    if (!secretKey) {
-        throw new Error('Wallet secret key must be provided via SECRET_KEY env var');
-    }
-    let decodedSecretKey;
-    try {
-        decodedSecretKey = base58.decode(secretKey);
-    } catch {
-        throw new Error('Invalid secret key provided. Must be a base 58 encoded string.');
-    }
-
-    const ownerWallet = Keypair.fromSecretKey(decodedSecretKey);
+    const ownerWallet = new Keypair();
+    console.log('Pubkey: ' + ownerWallet.publicKey.toBase58());
     console.log('Owner wallet: ' + ownerWallet.publicKey);
 
     const connectionString = `https://rpc.helius.xyz?api-key=${apiKey}`;
     const connectionWrapper = new WrappedConnection(ownerWallet, connectionString, connectionString, false);
 
     // Check tree
+    const treePublicKey = process.argv[2];
+    if (!treePublicKey) {
+        throw new Error('Public key tree must be provided as command line argument');
+    }
 
-    // const tree = new PublicKey('Cu61XHSkbasbvBc3atv5NUMz6C8FYmocNkH7mtjLFjR7');
-    const tree = new PublicKey('36jge8tHxMamiYHqa47d9v1WokRxjMvMa4Wh7x3fAjs8');
+    const tree = new PublicKey(treePublicKey);
     const treeAccount = await ConcurrentMerkleTreeAccount.fromAccountAddress(connectionWrapper, tree);
     console.log('Root: ' + base58.encode(treeAccount.getCurrentRoot()));
     console.log('Seq: ' + treeAccount.getCurrentSeq());
@@ -66,7 +59,7 @@ const check = async () => {
                     console.log('Valid proof: ' + assetInfo);
                 } else {
                     console.log('Invalid proof: ' + assetInfo);
-                    throw new Error('Invalid proof');
+                    process.exit(1);
                 }
             }
         });
