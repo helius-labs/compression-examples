@@ -464,6 +464,11 @@ export const burnAsset = async (
   let assetProof = await connectionWrapper.getAssetProof(assetId);
   const rpcAsset = await connectionWrapper.getAsset(assetId);
   const leafNonce = rpcAsset.compression.leaf_id;
+  let proofPath = assetProof.proof.map((node: string) => ({
+    pubkey: new PublicKey(node),
+    isSigner: false,
+    isWritable: false,
+}));
   const treeAuthority = await getBubblegumAuthorityPDA(
     new PublicKey(assetProof.tree_id)
   );
@@ -478,6 +483,8 @@ export const burnAsset = async (
       merkleTree: new PublicKey(assetProof.tree_id),
       logWrapper: SPL_NOOP_PROGRAM_ID,
       compressionProgram: SPL_ACCOUNT_COMPRESSION_PROGRAM_ID,
+      anchorRemainingAccounts: proofPath,
+
     },
     {
       root: bufferToArray(bs58.decode(assetProof.root)),
