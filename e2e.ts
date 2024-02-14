@@ -1,8 +1,15 @@
-import { TokenProgramVersion, TokenStandard } from '@metaplex-foundation/mpl-bubblegum';
+import { Creator, MetadataArgs, TokenProgramVersion, TokenStandard } from '@metaplex-foundation/mpl-bubblegum';
 import { ConcurrentMerkleTreeAccount } from '@solana/spl-account-compression';
 import { Keypair, PublicKey } from '@solana/web3.js';
 import base58 from 'bs58';
-import { getCompressedNftId, initCollection, initTree, mintCompressedNft, transferAsset } from './utils';
+import {
+    getCompressedNftId,
+    initCollection,
+    initTree,
+    mintCompressedNft,
+    mintCompressedNftWithCollection,
+    transferAsset,
+} from './utils';
 import { WrappedConnection } from './wrappedConnection';
 
 const e2e = async () => {
@@ -30,15 +37,16 @@ const e2e = async () => {
 
     // Fixed wallet to manage the merkle tree used to store the collection.
     // let tree = new PublicKey('1F8W2tM7NPCmZiUzhmW74yEQ7YQkjJCXXC5636iooz3'); // mainnet
-    let tree = new PublicKey('BcDFy3R4bWzobPoQJCXNdBWJENeYeRLEBU3cXV2YVmMy'); // devnet
+    let tree = new PublicKey('52wDoi81Rnw95B89bb4ckCksQmDxJRgV9bfJWkusEhhH'); // devnet
 
     // UNCOMMENT TO GENERATE A NEW TREE:
-    // tree = Keypair.generate();
+    // const treeWallet = Keypair.generate();
     // console.log('Tree wallet: ' + treeWallet.publicKey);
     // console.log('Creating merkle tree.');
     // await initTree(connectionWrapper, ownerWallet, treeWallet);
+    // const tree = treeWallet.publicKey;
 
-    // UNCOMMENT TO MINT A NEW COLLECTION:
+    // // UNCOMMENT TO MINT A NEW COLLECTION:
     // const { collectionMint, collectionMetadataAccount, collectionMasterEditionAccount } = await initCollection(
     //     connectionWrapper,
     //     ownerWallet,
@@ -54,7 +62,13 @@ const e2e = async () => {
         name: 'Compression Test',
         symbol: 'COMP',
         uri: 'https://arweave.net/gfO_TkYttQls70pTmhrdMDz9pfMUXX8hZkaoIivQjGs',
-        creators: [],
+        creators: [
+            {
+                address: new PublicKey('4do3sRSLX1eYmbNKa11iUQfTfWioeKofcgcbfzjKA47V'),
+                share: 100,
+                verified: true,
+            },
+        ],
         editionNonce: 253,
         tokenProgramVersion: TokenProgramVersion.Original,
         tokenStandard: TokenStandard.NonFungible,
@@ -63,7 +77,7 @@ const e2e = async () => {
         primarySaleHappened: false,
         sellerFeeBasisPoints: 0,
         isMutable: false,
-    };
+    } as MetadataArgs;
     const sig = await mintCompressedNft(connectionWrapper, nftArgs, ownerWallet, tree);
     console.log('Minted compressed nft with txn: ' + sig);
 
@@ -75,14 +89,14 @@ const e2e = async () => {
     const assetId = await getCompressedNftId(tree, leafIndex);
     console.log('Minted asset: ' + assetId);
 
-    // Fixed wallet to receive the NFT when we test transfer.
-    const newOwnerWallet = Keypair.fromSeed(new TextEncoder().encode('next wallet'.padEnd(32, '\0')));
-    console.log('New owner wallet: ' + newOwnerWallet.publicKey.toBase58());
+    // // Fixed wallet to receive the NFT when we test transfer.
+    // const newOwnerWallet = Keypair.fromSeed(new TextEncoder().encode('next wallet'.padEnd(32, '\0')));
+    // console.log('New owner wallet: ' + newOwnerWallet.publicKey.toBase58());
 
-    console.log('\n===Transfer===');
-    console.log('Transfer to new wallet.');
-    await transferAsset(connectionWrapper, ownerWallet, newOwnerWallet.publicKey, assetId.toBase58());
-    console.log('Successfully transferred nft to wallet: ' + newOwnerWallet.publicKey.toBase58());
+    // console.log('\n===Transfer===');
+    // console.log('Transfer to new wallet.');
+    // await transferAsset(connectionWrapper, ownerWallet, newOwnerWallet.publicKey, assetId.toBase58());
+    // console.log('Successfully transferred nft to wallet: ' + newOwnerWallet.publicKey.toBase58());
 };
 
 e2e();

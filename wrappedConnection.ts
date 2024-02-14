@@ -39,21 +39,17 @@ export class WrappedConnection extends Connection {
     }
 
     async getAssetProof(assetId: any): Promise<any> {
-        try {
-            const response = await axios.post(
-                this.useLocalDas ? this.localUrl : this.rpcUrl,
-                {
-                    jsonrpc: '2.0',
-                    method: 'getAssetProof',
-                    id: 'compression-example',
-                    params: [assetId],
-                },
-                { proxy: false },
-            );
-            return response.data.result;
-        } catch (error) {
-            console.error(error);
-        }
+        const response = await axios.post(
+            this.useLocalDas ? this.localUrl : this.rpcUrl,
+            {
+                jsonrpc: '2.0',
+                method: 'getAssetProof',
+                id: 'compression-example',
+                params: [assetId],
+            },
+            { proxy: false },
+        );
+        return response.data.result;
     }
 
     async getAssetsByOwner(
@@ -64,17 +60,33 @@ export class WrappedConnection extends Connection {
         before: string,
         after: string,
     ): Promise<any> {
-        try {
-            const response = await axios.post(this.useLocalDas ? this.localUrl : this.rpcUrl, {
-                jsonrpc: '2.0',
-                method: 'getAssetsByOwner',
-                id: 'compression-example',
-                params: [assetId, sortBy, limit, page, before, after],
-            });
-            return response.data.result;
-        } catch (error) {
-            console.error(error);
-        }
+        const response = await axios.post(this.useLocalDas ? this.localUrl : this.rpcUrl, {
+            jsonrpc: '2.0',
+            method: 'getAssetsByOwner',
+            id: 'compression-example',
+            params: [assetId, sortBy, limit, page, before, after],
+        });
+        return response.data.result;
+    }
+
+    async getAssetsByGroup(params: any): Promise<any> {
+        const response = await axios.post(this.useLocalDas ? this.localUrl : this.rpcUrl, {
+            jsonrpc: '2.0',
+            method: 'getAssetsByGroup',
+            id: 'compression-example',
+            params,
+        });
+        return response.data.result;
+    }
+
+    async searchAssets(params: any): Promise<any> {
+        const response = await axios.post(this.useLocalDas ? this.localUrl : this.rpcUrl, {
+            jsonrpc: '2.0',
+            method: 'searchAssets',
+            id: 'compression-example',
+            params,
+        });
+        return response.data.result;
     }
 }
 
